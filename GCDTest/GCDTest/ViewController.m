@@ -17,18 +17,18 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
+    [self barrierTest];
     [self mainThreadDeadLockTest];
     [self deadLockTest];
-    
     [self creatSerialQ];
-    
     [self groupTest];
-    
     [self dispatchSemaphore];
 }
 
 #pragma mark - 死锁测试
-/// 在主线程死锁，这种死锁很常见  原因：主队列，如果主线程正在执行代码，就不调度任务；同步执行：一直执行第一个任务直到结束。两者互相等待造成死锁。
+/**
+ 在主线程死锁，这种死锁很常见  原因：主队列，如果主线程正在执行代码，就不调度任务；同步执行：一直执行第一个任务直到结束。两者互相等待造成死锁。
+ */
 - (void)mainThreadDeadLockTest {
     NSLog(@"begin");
     dispatch_sync(dispatch_get_main_queue(), ^{
@@ -39,7 +39,9 @@
     NSLog(@"end");
 }
 
-/// 新建线程死锁测试  原因：serialQueue为串行队列，当代码执行到block1时正常，执行到dispatch_sync时，dispatch_sync等待block2执行完毕才会返回，而serialQueue是串行队列，它正在执行block1，只有等block1执行完毕后才会去执行block2，相互等待造成死锁
+/**
+ 新建线程死锁测试  原因：serialQueue为串行队列，当代码执行到block1时正常，执行到dispatch_sync时，dispatch_sync等待block2执行完毕才会返回，而serialQueue是串行队列，它正在执行block1，只有等block1执行完毕后才会去执行block2，相互等待造成死锁
+ */
 - (void)deadLockTest {
     // 其它线程的死锁
     dispatch_queue_t serialQueue = dispatch_queue_create("serial_queue", DISPATCH_QUEUE_SERIAL);
@@ -71,10 +73,9 @@
      */
     serialQ = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
 
-/* 同步执行
- 第一个参数：执行任务的队列：串行、并行、全局、主队列
- 第二个参数：block任务
- */
+// 同步执行
+// 第一个参数：执行任务的队列：串行、并行、全局、主队列
+// 第二个参数：block任务
 void dispatch_sync(dispatch_queue_t queue, dispatch_block_t block);
 // 异步执行
 void dispatch_async(dispatch_queue_t queue, dispatch_block_t block);
@@ -88,6 +89,42 @@ void dispatch_async(dispatch_queue_t queue, dispatch_block_t block);
         // 要执行的代码
     });
 
+}
+
+/**
+ 123并发执行，然后barrier，然后456并发执行。注意：不要使用全局并发队列
+ */
+- (void)barrierTest {
+    // 1 创建并发队列
+    dispatch_queue_t BCqueue = dispatch_queue_create("BarrierConcurrent", DISPATCH_QUEUE_CONCURRENT);
+    
+    // 2.1 添加任务123
+    dispatch_async(BCqueue, ^{
+        NSLog(@"task1,%@", [NSThread currentThread]);
+    });
+    dispatch_async(BCqueue, ^{
+        sleep(3);
+        NSLog(@"task2,%@", [NSThread currentThread]);
+    });
+    dispatch_async(BCqueue, ^{
+        sleep(1);
+        NSLog(@"task3,%@", [NSThread currentThread]);
+    });
+    // 2.2 添加barrier
+    dispatch_barrier_async(BCqueue, ^{
+        NSLog(@"barrier");
+    });
+    // 2.3 添加任务456
+    dispatch_async(BCqueue, ^{
+        sleep(1);
+        NSLog(@"task4,%@", [NSThread currentThread]);
+    });
+    dispatch_async(BCqueue, ^{
+        NSLog(@"task5,%@", [NSThread currentThread]);
+    });
+    dispatch_async(BCqueue, ^{
+        NSLog(@"task6,%@", [NSThread currentThread]);
+    });
 }
 
 #pragma mark - 任务组
